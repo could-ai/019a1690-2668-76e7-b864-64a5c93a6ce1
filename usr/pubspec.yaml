@@ -34,15 +34,10 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-
-  # Camera package for taking photos
-  camera: ^0.11.0
-
-  # Google ML Kit for OCR and text recognition
+  camera: ^0.10.5
   google_ml_kit: ^0.18.0
+  image_picker: ^1.0.7
 
-  # Image picker for selecting images from gallery (optional)
-  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:
@@ -83,11 +78,11 @@ flutter:
   # list giving the asset and other descriptors for the font. For
   # example:
   # fonts:
-  #     - family: Schyler
-  #       fonts:
-  #         - asset: fonts/Schyler-Regular.ttf
-  #         - asset: fonts/Schyler-Italic.ttf
-  #           style: italic
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
   #   - family: Trajan Pro
   #     fonts:
   #       - asset: fonts/TrajanPro.ttf

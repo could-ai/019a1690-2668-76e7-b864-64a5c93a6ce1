@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:camera/camera.dart';
+import 'package:google_ml_kit/google_ml_kit.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
 void main() {
   runApp(const MyApp());
@@ -7,114 +11,259 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Prescription Digitizer',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const HomePage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Prescription Digitizer'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'Take a photo of your prescription',
+              style: TextStyle(fontSize: 18),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () => _openCamera(context),
+              icon: const Icon(Icons.camera_alt),
+              label: const Text('Take Photo'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: () => _pickFromGallery(context),
+              icon: const Icon(Icons.photo_library),
+              label: const Text('Select from Gallery'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openCamera(BuildContext context) async {
+    final cameras = await availableCameras();
+    if (cameras.isNotEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CameraPage(camera: cameras.first),
+        ),
+      );
+    }
+  }
+
+  void _pickFromGallery(BuildContext context) async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      _processImage(File(pickedFile.path), context);
+    }
+  }
+
+  void _processImage(File imageFile, BuildContext context) async {
+    final textRecognizer = GoogleMlKit.vision.textRecognizer();
+    final inputImage = InputImage.fromFile(imageFile);
+    final recognizedText = await textRecognizer.processImage(inputImage);
+
+    await textRecognizer.close();
+
+    // Extract medicine names (simple regex for demo)
+    final medicines = _extractMedicines(recognizedText.text);
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ResultsPage(
+          recognizedText: recognizedText.text,
+          medicines: medicines,
+        ),
+      ),
+    );
+  }
+
+  List<String> _extractMedicines(String text) {
+    // Simple extraction - look for common medicine patterns
+    final medicineRegex = RegExp(r'\b[A-Z][a-z]+\s*[A-Z]*[a-z]*\b');
+    final matches = medicineRegex.allMatches(text);
+    return matches.map((match) => match.group(0)!).toSet().toList(); // Remove duplicates
+  }
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class CameraPage extends StatefulWidget {
+  final CameraDescription camera;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  const CameraPage({super.key, required this.camera});
+
+  @override
+  State<CameraPage> createState() => _CameraPageState();
+}
+
+class _CameraPageState extends State<CameraPage> {
+  late CameraController _controller;
+  late Future<void> _initializeControllerFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = CameraController(
+      widget.camera,
+      ResolutionPreset.medium,
+    );
+    _initializeControllerFuture = _controller.initialize();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+      appBar: AppBar(title: const Text('Take Photo')),
+      body: FutureBuilder<void>(
+        future: _initializeControllerFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.done) {
+            return CameraPreview(_controller);
+          } else {
+            return const Center(child: CircularProgressIndicator());
+          }
+        },
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          try {
+            await _initializeControllerFuture;
+            final image = await _controller.takePicture();
+            if (!mounted) return;
+            _processImage(File(image.path), context);
+          } catch (e) {
+            print(e);
+          }
+        },
+        child: const Icon(Icons.camera),
+      ),
+    );
+  }
+
+  void _processImage(File imageFile, BuildContext context) async {
+    final textRecognizer = GoogleMlKit.vision.textRecognizer();
+    final inputImage = InputImage.fromFile(imageFile);
+    final recognizedText = await textRecognizer.processImage(inputImage);
+
+    await textRecognizer.close();
+
+    final medicines = _extractMedicines(recognizedText.text);
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ResultsPage(
+          recognizedText: recognizedText.text,
+          medicines: medicines,
+        ),
+      ),
+    );
+  }
+
+  List<String> _extractMedicines(String text) {
+    final medicineRegex = RegExp(r'\b[A-Z][a-z]+\s*[A-Z]*[a-z]*\b');
+    final matches = medicineRegex.allMatches(text);
+    return matches.map((match) => match.group(0)!).toSet().toList();
+  }
+}
+
+class ResultsPage extends StatelessWidget {
+  final String recognizedText;
+  final List<String> medicines;
+
+  const ResultsPage({
+    super.key,
+    required this.recognizedText,
+    required this.medicines,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Recognized Text')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text('$_counter', style: Theme.of(context).textTheme.headlineMedium),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Recognized Text:',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Text(recognizedText),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Detected Medicines:',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: ListView.builder(
+                itemCount: medicines.length,
+                itemBuilder: (context, index) {
+                  final medicine = medicines[index];
+                  final info = _getMedicineInfo(medicine);
+                  return Card(
+                    child: ListTile(
+                      title: Text(medicine),
+                      subtitle: Text(info),
+                    ),
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
+  }
+
+  String _getMedicineInfo(String medicine) {
+    // Mock medicine information - in a real app, this would come from an API
+    final mockData = {
+      'Aspirin': 'Pain reliever and anti-inflammatory. Common side effects: stomach upset, heartburn.',
+      'Ibuprofen': 'NSAID for pain and inflammation. May cause stomach issues, dizziness.',
+      'Paracetamol': 'Fever reducer and pain reliever. Overuse can damage liver.',
+      'Amoxicillin': 'Antibiotic for bacterial infections. May cause diarrhea, nausea.',
+      'Metformin': 'Diabetes medication. Side effects: nausea, diarrhea, stomach upset.',
+    };
+
+    return mockData[medicine] ?? 'Additional information not available. Please consult a healthcare professional.';
   }
 }
